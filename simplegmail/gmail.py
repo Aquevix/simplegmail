@@ -30,7 +30,7 @@ from oauth2client import client, file, tools
 from oauth2client.clientsecrets import InvalidClientSecretsError
 
 from simplegmail import label
-from simplegmail.attachment import Attachment
+from simplegmail.attachment import Attachment, AttachedFileType, AttachedFile
 from simplegmail.label import Label
 from simplegmail.message import Message
 
@@ -135,7 +135,7 @@ class Gmail(object):
         msg_plain: Optional[str] = None,
         cc: Optional[List[str]] = None,
         bcc: Optional[List[str]] = None,
-        attachments: Optional[List[str]] = None,
+        attachments: Optional[List[AttachedFileType]] = None,
         signature: bool = False,
         user_id: str = 'me'
     ) -> Message:
@@ -843,7 +843,7 @@ class Gmail(object):
                 elif part['part_type'] == 'attachment':
                     attm = Attachment(self.service, user_id, msg_id,
                                       part['attachment_id'], part['filename'],
-                                      part['filetype'], part['data'])
+                                      part['filetype'], part['headers'], part['is_inline'], part['cid'], part['data'])
                     attms.append(attm)
 
             return Message(
@@ -904,11 +904,22 @@ class Gmail(object):
             if not filename:
                 filename = 'unknown'
 
+            headers = payload['headers']
+
+            content_disposition = get_value_for_header(headers, 'content-disposition')
+            _val = content_disposition.split(";")[0] if content_disposition else None
+            is_inline = True if _val and _val.lower().strip() == "inline" else False
+            content_id = get_value_for_header(headers, 'content-id')
+            cid = content_id.replace('<', "").replace(">", "") if content_id else ""
+
             obj = {
                 'part_type': 'attachment',
                 'filetype': payload['mimeType'],
                 'filename': filename,
                 'attachment_id': att_id,
+                'headers': headers,
+                'is_inline': is_inline,
+                'cid': cid,
                 'data': None
             }
 
@@ -959,7 +970,7 @@ class Gmail(object):
         msg_plain: str = None,
         cc: List[str] = None,
         bcc: List[str] = None,
-        attachments: List[str] = None,
+        attachments: List[AttachedFileType] = None,
         signature: bool = False,
         user_id: str = 'me'
     ) -> dict:
@@ -985,7 +996,7 @@ class Gmail(object):
 
         """
 
-        msg = MIMEMultipart('mixed' if attachments else 'alternative')
+        msg = MIMEMultipart('related' if attachments else 'alternative')
         msg['To'] = to
         msg['From'] = sender
         msg['Subject'] = subject
@@ -1028,7 +1039,7 @@ class Gmail(object):
     def _ready_message_with_attachments(
         self,
         msg: MIMEMultipart,
-        attachments: List[str]
+        attachments: List[AttachedFileType]
     ) -> None:
         """
         Converts attachment filepaths to MIME objects and adds them to msg.
@@ -1039,7 +1050,16 @@ class Gmail(object):
 
         """
 
-        for filepath in attachments:
+        for attached in attachments:
+            filepath = attached
+            cid = None
+            is_inline = False
+
+            if isinstance(attached, AttachedFile):
+                filepath = attached.filepath
+                cid = attached.cid
+                is_inline = attached.is_inline
+
             content_type, encoding = mimetypes.guess_type(filepath)
 
             if content_type is None or encoding is not None:
@@ -1063,7 +1083,12 @@ class Gmail(object):
                     attm.set_payload(raw_data)
 
             fname = os.path.basename(filepath)
-            attm.add_header('Content-Disposition', 'attachment', filename=fname)
+            if is_inline:
+                attm.add_header('Content-Disposition', 'inline', filename=fname)
+                attm.add_header('Content-ID', f"<{cid}>")
+                attm.add_header('X-Attachment-Id', cid)
+            else:
+                attm.add_header('Content-Disposition', 'attachment', filename=fname)
             msg.attach(attm)
 
     def _get_alias_info(
@@ -1118,3 +1143,10 @@ class Gmail(object):
     @maxResults.setter
     def maxResults(self, value):
         self._maxResults = int(value)
+
+
+def get_value_for_header(headers, key, default_value=None):
+    for hdr in headers:
+        if hdr['name'].lower() == key:
+            return hdr['value']
+    return default_value

@@ -6,12 +6,14 @@ This module contains the implementation of the Attachment object.
 """
 
 import base64  # for base64.urlsafe_b64decode
+from dataclasses import dataclass
 import os      # for os.path.exists
-from typing import Optional
+from typing import Optional, List, Dict, TypeVar
+
 
 class Attachment(object):
     """
-    The Attachment class for attachments to emails in your Gmail mailbox. This 
+    The Attachment class for attachments to emails in your Gmail mailbox. This
     class should not be manually instantiated.
 
     Args:
@@ -21,6 +23,9 @@ class Attachment(object):
         att_id: The id of the attachment.
         filename: The filename associated with the attachment.
         filetype: The mime type of the file.
+        headers: The headers of the attachment.
+        is_inline: The attachment is inline or not in email message.
+        cid: The content id of the attachment.
         data: The raw data of the file. Default None.
 
     Attributes:
@@ -30,10 +35,13 @@ class Attachment(object):
         id (str): The id of the attachment.
         filename (str): The filename associated with the attachment.
         filetype (str): The mime type of the file.
+        headers: The headers of the attachment.
+        is_inline: The attachment is inline or not in email message.
+        cid: The content id of the attachment.
         data (bytes): The raw data of the file.
 
     """
-    
+
     def __init__(
         self,
         service: 'googleapiclient.discovery.Resource',
@@ -42,6 +50,9 @@ class Attachment(object):
         att_id: str,
         filename: str,
         filetype: str,
+        headers: Optional[List[Dict]],
+        is_inline: bool,
+        cid: str,
         data: Optional[bytes] = None
     ) -> None:
         self._service = service
@@ -50,18 +61,21 @@ class Attachment(object):
         self.id = att_id
         self.filename = filename
         self.filetype = filetype
+        self.headers = headers or []
+        self.is_inline = is_inline or False
+        self.cid = cid or ''
         self.data = data
 
     def download(self) -> None:
         """
         Downloads the data for an attachment if it does not exist.
-        
+
         Raises:
-            googleapiclient.errors.HttpError: There was an error executing the 
+            googleapiclient.errors.HttpError: There was an error executing the
                 HTTP request.
-        
+
         """
-        
+
         if self.data is not None:
             return
 
@@ -79,18 +93,18 @@ class Attachment(object):
     ) -> None:
         """
         Saves the attachment. Downloads file data if not downloaded.
-        
+
         Args:
-            filepath: where to save the attachment. Default None, which uses 
+            filepath: where to save the attachment. Default None, which uses
                 the filename stored.
             overwrite: whether to overwrite existing files. Default False.
-        
+
         Raises:
-            FileExistsError: if the call would overwrite an existing file and 
+            FileExistsError: if the call would overwrite an existing file and
                 overwrite is not set to True.
-        
+
         """
-        
+
         if filepath is None:
             filepath = self.filename
 
@@ -106,3 +120,12 @@ class Attachment(object):
         with open(filepath, 'wb') as f:
             f.write(self.data)
 
+
+@dataclass
+class AttachedFile:
+    filepath: str
+    cid: str = ''
+    is_inline: bool = False
+
+
+AttachedFileType = TypeVar("AttachedFileType", str, AttachedFile)
