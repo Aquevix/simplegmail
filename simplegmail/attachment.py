@@ -124,6 +124,7 @@ class Attachment(object):
 @dataclass
 class AttachedFile:
     filepath: str
+    # urlpath: str = None  # TODO: Maybe we use this in future to compare files.
     cid: str = ''
     disposition: str = ''
 
