@@ -24,7 +24,7 @@ class Attachment(object):
         filename: The filename associated with the attachment.
         filetype: The mime type of the file.
         headers: The headers of the attachment.
-        is_inline: The attachment is inline or not in email message.
+        disposition: The content disposition of the attachment.
         cid: The content id of the attachment.
         data: The raw data of the file. Default None.
 
@@ -36,7 +36,7 @@ class Attachment(object):
         filename (str): The filename associated with the attachment.
         filetype (str): The mime type of the file.
         headers: The headers of the attachment.
-        is_inline: The attachment is inline or not in email message.
+        disposition: The content disposition of the attachment.
         cid: The content id of the attachment.
         data (bytes): The raw data of the file.
 
@@ -51,7 +51,7 @@ class Attachment(object):
         filename: str,
         filetype: str,
         headers: Optional[List[Dict]],
-        is_inline: bool,
+        disposition: str,
         cid: str,
         data: Optional[bytes] = None
     ) -> None:
@@ -62,7 +62,7 @@ class Attachment(object):
         self.filename = filename
         self.filetype = filetype
         self.headers = headers or []
-        self.is_inline = is_inline or False
+        self.disposition = disposition or ''
         self.cid = cid or ''
         self.data = data
 
@@ -125,7 +125,7 @@ class Attachment(object):
 class AttachedFile:
     filepath: str
     cid: str = ''
-    is_inline: bool = False
+    disposition: str = ''
 
 
 AttachedFileType = TypeVar("AttachedFileType", str, AttachedFile)

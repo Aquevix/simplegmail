@@ -843,7 +843,7 @@ class Gmail(object):
                 elif part['part_type'] == 'attachment':
                     attm = Attachment(self.service, user_id, msg_id,
                                       part['attachment_id'], part['filename'],
-                                      part['filetype'], part['headers'], part['is_inline'], part['cid'], part['data'])
+                                      part['filetype'], part['headers'], part['disposition'], part['cid'], part['data'])
                     attms.append(attm)
 
             return Message(
@@ -908,7 +908,7 @@ class Gmail(object):
 
             content_disposition = get_value_for_header(headers, 'content-disposition')
             _val = content_disposition.split(";")[0] if content_disposition else None
-            is_inline = True if _val and _val.lower().strip() == "inline" else False
+            disposition = _val if _val else ""
             content_id = get_value_for_header(headers, 'content-id')
             cid = content_id.replace('<', "").replace(">", "") if content_id else ""
 
@@ -918,7 +918,7 @@ class Gmail(object):
                 'filename': filename,
                 'attachment_id': att_id,
                 'headers': headers,
-                'is_inline': is_inline,
+                'disposition': disposition,
                 'cid': cid,
                 'data': None
             }
@@ -1053,12 +1053,12 @@ class Gmail(object):
         for attached in attachments:
             filepath = attached
             cid = None
-            is_inline = False
+            disposition = 'attachment'
 
             if isinstance(attached, AttachedFile):
                 filepath = attached.filepath
                 cid = attached.cid
-                is_inline = attached.is_inline
+                disposition = attached.disposition
 
             content_type, encoding = mimetypes.guess_type(filepath)
 
@@ -1083,12 +1083,9 @@ class Gmail(object):
                     attm.set_payload(raw_data)
 
             fname = os.path.basename(filepath)
-            if is_inline:
-                attm.add_header('Content-Disposition', 'inline', filename=fname)
+            attm.add_header('Content-Disposition', disposition, filename=fname)
+            if cid:
                 attm.add_header('Content-ID', f"<{cid}>")
-                attm.add_header('X-Attachment-Id', cid)
-            else:
-                attm.add_header('Content-Disposition', 'attachment', filename=fname)
             msg.attach(attm)
 
     def _get_alias_info(
